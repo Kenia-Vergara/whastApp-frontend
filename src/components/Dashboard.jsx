@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import './Dashboard.css';
 
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL;
+
 const Dashboard = ({ user, onLogout }) => {
 
   const [qrData, setQrData] = useState(null);
@@ -33,7 +35,7 @@ const Dashboard = ({ user, onLogout }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:5111/api/status', {
+      const response = await fetch(`${API_BASE_URL}/api/status`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -74,7 +76,7 @@ const Dashboard = ({ user, onLogout }) => {
         return;
       }
 
-      const response = await fetch('http://localhost:5111/api/qr-code', {
+      const response = await fetch(`${API_BASE_URL}/api/qr-code`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -143,7 +145,7 @@ const Dashboard = ({ user, onLogout }) => {
 
       console.log('Solicitando nuevo QR...');
       
-      const response = await fetch('http://localhost:5111/api/qr-request', {
+      const response = await fetch(`${API_BASE_URL}/api/qr-request`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -236,7 +238,7 @@ const Dashboard = ({ user, onLogout }) => {
     onLogout();
   };
 
-  // Obtener estado y QR al cargar el componente
+  // Efecto para manejar la lógica inicial y el intervalo de estado
   useEffect(() => {
     getQRStatus();
     getQRCode();

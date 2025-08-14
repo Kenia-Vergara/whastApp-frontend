@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import './Login.css';
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL;
 
 const Login = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
@@ -26,7 +27,7 @@ const Login = ({ onLoginSuccess }) => {
 
     try {
       // Llamada directa al backend
-      const response = await fetch('http://localhost:5111/api/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -90,6 +91,7 @@ const Login = ({ onLoginSuccess }) => {
               onChange={handleChange}
               placeholder="Ingresa tu contraseña"
               required
+              autoComplete="current-password"
               disabled={loading}
             />
           </div>
