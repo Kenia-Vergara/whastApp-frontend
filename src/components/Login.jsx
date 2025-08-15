@@ -38,15 +38,24 @@ const Login = ({ onLoginSuccess }) => {
       const data = await response.json();
 
       if (data.success) {
-        // Guardar el token en localStorage
+        // Guardar el token en localStorage primero
         localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify({
-          username: formData.username,
-          role: data.role
-        }));
         
-        // Llamar a la función de éxito
-        onLoginSuccess(data);
+        // Preparar los datos del usuario
+        const userData = {
+          username: formData.username,
+          role: data.role || 'user' // valor por defecto si no viene role
+        };
+        
+        // Guardar los datos del usuario
+        localStorage.setItem('user', JSON.stringify(userData));
+        
+        // Llamar a la función de éxito con los datos correctos
+        onLoginSuccess({
+          username: formData.username,
+          role: data.role || 'user',
+          token: data.token
+        });
       } else {
         setError(data.message || 'Error en el inicio de sesión');
       }
