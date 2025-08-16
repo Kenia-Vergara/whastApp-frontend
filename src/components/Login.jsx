@@ -20,9 +20,12 @@ const Login = ({ onLoginSuccess }) => {
     if (error) setError('');
   };
 
-  console.log(import.meta.env.VITE_API_BASE_URL);
-  console.log('hi');
-  console.log(API_BASE_URL);
+  console.log('Todas las variables env:', import.meta.env);
+  console.log('VITE_API_BASE_URL específica:', import.meta.env.VITE_API_BASE_URL);
+  console.log('Modo:', import.meta.env.MODE);
+  console.log('Variables que empiezan con VITE_:',
+    Object.keys(import.meta.env).filter(key => key.startsWith('VITE_'))
+  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -44,16 +47,16 @@ const Login = ({ onLoginSuccess }) => {
       if (data.success) {
         // Guardar el token en localStorage primero
         localStorage.setItem('token', data.token);
-        
+
         // Preparar los datos del usuario
         const userData = {
           username: formData.username,
           role: data.role || 'user' // valor por defecto si no viene role
         };
-        
+
         // Guardar los datos del usuario
         localStorage.setItem('user', JSON.stringify(userData));
-        
+
         // Llamar a la función de éxito con los datos correctos
         onLoginSuccess({
           username: formData.username,
@@ -115,8 +118,8 @@ const Login = ({ onLoginSuccess }) => {
             </div>
           )}
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="login-button"
             disabled={loading || !formData.username || !formData.password}
           >
