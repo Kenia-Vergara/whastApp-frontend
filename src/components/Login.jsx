@@ -20,6 +20,10 @@ const Login = ({ onLoginSuccess }) => {
     if (error) setError('');
   };
 
+  console.log(import.meta.env.VITE_API_BASE_URL);
+  console.log('hi');
+  console.log(API_BASE_URL);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
