@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import './Login.css';
-const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL;
+
+const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5111';
 
 const Login = ({ onLoginSuccess }) => {
   const [formData, setFormData] = useState({
@@ -19,13 +20,6 @@ const Login = ({ onLoginSuccess }) => {
     // Limpiar error cuando el usuario empiece a escribir
     if (error) setError('');
   };
-
-  console.log('Todas las variables env:', import.meta.env);
-  console.log('VITE_API_BASE_URL específica:', import.meta.env.VITE_API_BASE_URL);
-  console.log('Modo:', import.meta.env.MODE);
-  console.log('Variables que empiezan con VITE_:',
-    Object.keys(import.meta.env).filter(key => key.startsWith('VITE_'))
-  );
 
   const handleSubmit = async (e) => {
     e.preventDefault();
