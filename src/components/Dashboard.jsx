@@ -48,6 +48,32 @@ const Dashboard = ({ user, onLogout }) => {
     }, 5000);
   };
 
+  const handleResetAuth = async (e) => {
+    try {
+      // Llamada directa al backend
+      const response = await fetch(`${API_BASE_URL}/api/auth/reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer: ${token}`
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        addNotification('Carpeta Auth eliminada', 'success')
+      } else {
+        setError(data.message || 'Error en el inicio de sesión');
+      }
+    } catch (err) {
+      console.log(err)
+      setError('Error de conexión. Verifica que el backend esté funcionando en el puerto 5111.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   // Conectar WebSocket
   const connectWebSocket = useCallback(() => {
     if (!token || socketRef.current?.connected) return;
@@ -356,6 +382,9 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
           <button onClick={getStatus} className="btn btn-secondary">
             Actualizar Estado
+          </button>
+          <button onClick={handleResetAuth} className="btn btn-secondary">
+            Elimninar Auth_info
           </button>
         </div>
       );
