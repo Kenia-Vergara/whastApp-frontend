@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import './Dashboard.css';
+import { io } from 'socket.io-client';
+import './Dashboard.css'
 
 const Dashboard = ({ user, onLogout }) => {
   // Estados principales
@@ -12,102 +13,155 @@ const Dashboard = ({ user, onLogout }) => {
     hasActiveQR: false,
     isConnected: false,
     qrInfo: null,
-    actions: null
+    connectionState: {}
   });
-  const [socketConnected, setSocketConnected] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [qrString, setQrString] = useState('');
 
   // Referencias
   const countdownRef = useRef(null);
   const socketRef = useRef(null);
-  const lastQRUpdateRef = useRef(null);
-  const mountedRef = useRef(true);
+  const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5111';
+  const token = localStorage.getItem('token');
 
-  // URL base simulada (reemplaza con tu URL real)
-  const API_BASE_URL = 'https://api.tudominio.com';
+  // Formatear tiempo
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
 
-  // Función simulada de WebSocket (reemplaza con socket.io real)
+    let className = 'time-normal';
+    if (seconds <= 10) className = 'time-critical';
+    else if (seconds <= 30) className = 'time-warning';
+
+    return { timeString, className };
+  };
+
+  // Agregar notificación
+  const addNotification = (message, type = 'info') => {
+    const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // ID más único
+    setNotifications(prev => [...prev, { id, message, type }]);
+
+    // Auto-eliminar después de 5 segundos
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 5000);
+  };
+
+  // Conectar WebSocket
   const connectWebSocket = useCallback(() => {
+    if (!token || socketRef.current?.connected) return;
+
     try {
       console.log('🔌 Conectando WebSocket...');
-      
-      // Simulación de conexión WebSocket
-      const connectSocket = () => {
-        setSocketConnected(true);
+
+      const socket = io(apiBaseUrl, {
+        auth: { token: token },
+        reconnectionAttempts: 5,
+        reconnectionDelay: 2000, // Aumentado a 2 segundos
+        reconnectionDelayMax: 5000,
+        maxReconnectionAttempts: 3,
+        timeout: 10000,
+        transports: ['websocket'],
+        forceNew: true // Fuerza una nueva conexión
+      });
+
+      socket.on('connect', () => {
         console.log('✅ WebSocket conectado');
-        
-        if (user?.userId) {
-          console.log('👤 Uniéndose a canal de usuario:', user.userId);
+        addNotification('Conexión en tiempo real establecida', 'success');
+      });
+
+      socket.on('disconnect', (reason) => {
+        console.log('❌ WebSocket desconectado:', reason);
+
+        // NO reconectes automáticamente - deja que socket.io maneje esto
+        // Solo notifica al usuario
+        if (reason === 'io server disconnect') {
+          addNotification('Servidor desconectado', 'warning');
+        } else if (reason === 'io client disconnect') {
+          addNotification('Desconectado por cliente', 'info');
+        } else {
+          addNotification('Conexión perdida', 'warning');
         }
-        
-        // Simular obtención de estado inicial
-        setTimeout(() => {
-          handleStatusUpdate({
-            hasActiveQR: false,
-            isConnected: false,
-            qrInfo: null,
-            actions: null
-          });
-        }, 1000);
-      };
+      });
 
-      // Simular delay de conexión
-      setTimeout(connectSocket, 500);
+      socket.on('reconnect', (attemptNumber) => {
+        console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
+        addNotification('Reconectado exitosamente', 'success');
+      });
 
-      // Simular reconexión en caso de desconexión
-      const reconnectInterval = setInterval(() => {
-        if (!socketRef.current && mountedRef.current) {
-          console.log('🔄 Reintentando conexión WebSocket...');
-          connectSocket();
-        }
-      }, 10000);
+      socket.on('reconnect_error', (error) => {
+        console.error('❌ Error de reconexión:', error);
+        addNotification('Error al reconectar', 'error');
+      });
 
-      socketRef.current = {
-        connected: true,
-        disconnect: () => {
-          clearInterval(reconnectInterval);
-          setSocketConnected(false);
-          socketRef.current = null;
-          console.log('❌ WebSocket desconectado');
-        },
-        emit: (event, data) => {
-          console.log('📤 Emitiendo:', event, data);
-        }
-      };
+      socket.on('reconnect_failed', () => {
+        console.error('❌ Falló la reconexión después de todos los intentos');
+        addNotification('No se pudo reconectar. Recarga la página.', 'error');
+      });
 
+      socket.on('connect_error', (err) => {
+        console.error('❌ Error de conexión WebSocket:', err.message);
+        addNotification(`Error de conexión: ${err.message}`, 'error');
+      });
+
+      socket.on('qr-status-update', (status) => {
+        console.log('📊 Actualización de estado:', status);
+        handleStatusUpdate(status);
+      });
+
+      socketRef.current = socket;
     } catch (error) {
       console.error('❌ Error al conectar WebSocket:', error);
-      setError('Error al conectar con el servidor');
-      setSocketConnected(false);
+      addNotification('Error al conectar con el servidor', 'error');
     }
-  }, [user?.userId]);
+  }, [token, apiBaseUrl]);
 
-  // Función para desconectar WebSocket
+  // Desconectar WebSocket
   const disconnectWebSocket = useCallback(() => {
-    if (socketRef.current && typeof socketRef.current.disconnect === 'function') {
+    if (socketRef.current) {
+      socketRef.current.removeAllListeners(); // Limpia todos los listeners
       socketRef.current.disconnect();
       socketRef.current = null;
+      console.log('❌ WebSocket desconectado y limpiado');
     }
-    setSocketConnected(false);
   }, []);
 
   // Manejar actualizaciones de estado
   const handleStatusUpdate = useCallback((data) => {
-    if (!mountedRef.current) return;
-
     console.log('📊 Actualizando estado:', data);
-    
-    setConnectionStatus({
+
+    setConnectionStatus(prev => ({
+      ...prev,
       hasActiveQR: data.hasActiveQR || false,
       isConnected: data.isConnected || false,
-      qrInfo: data.qrInfo || null,
-      actions: data.actions || null
-    });
-    
+      qrInfo: data.qrData || null,
+      connectionState: data.connectionState || {}
+    }));
+
     setTokenExpired(false);
     setError('');
-    
-    if (data.hasActiveQR && data.qrInfo) {
-      handleQRUpdate(data.qrInfo);
+
+    if (data.qrData?.image) {
+      setQrData({
+        qrCode: data.qrData.image,
+        expiresAt: data.qrData.expiresAt,
+        createdAt: data.qrData.createdAt
+      });
+
+      const now = Date.now();
+      const expiresAt = new Date(data.qrData.expiresAt).getTime();
+      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
+
+      console.log(`⏰ Tiempo restante calculado: ${remaining}s`);
+      setTimeRemaining(remaining);
+
+      if (remaining > 0) {
+        startCountdown(remaining);
+      } else {
+        stopCountdown();
+        setQrData(null);
+      }
     } else {
       setQrData(null);
       stopCountdown();
@@ -115,49 +169,10 @@ const Dashboard = ({ user, onLogout }) => {
     }
   }, []);
 
-  // Manejar actualizaciones del QR
-  const handleQRUpdate = useCallback((qrInfo) => {
-    if (!mountedRef.current || !qrInfo || !qrInfo.image) return;
-    
-    // Evitar actualizaciones duplicadas
-    if (lastQRUpdateRef.current === qrInfo.image) {
-      console.log('⏭️ QR ya actualizado, saltando...');
-      return;
-    }
-    
-    console.log('🆕 Actualizando QR con nueva información');
-    
-    const newQRData = {
-      qrCode: qrInfo.image,
-      expiresAt: qrInfo.expiresAt || Date.now() + 60000, // Default 1 minuto
-      createdAt: qrInfo.createdAt || Date.now()
-    };
-    
-    setQrData(newQRData);
-    lastQRUpdateRef.current = qrInfo.image;
-    
-    // Calcular tiempo restante
-    if (qrInfo.expiresAt) {
-      const now = Date.now();
-      const expiresAt = new Date(qrInfo.expiresAt).getTime();
-      const remaining = Math.max(0, Math.floor((expiresAt - now) / 1000));
-      
-      console.log(`⏰ Tiempo restante calculado: ${remaining}s`);
-      setTimeRemaining(remaining);
-      
-      if (remaining > 0) {
-        startCountdown(remaining);
-      } else {
-        stopCountdown();
-        setQrData(null);
-      }
-    }
-  }, []);
+  // Llamadas API reales
+  const apiCall = useCallback(async (endpoint, options = {}) => {
 
-  // Función mejorada para llamadas a API
-  const apiCall = useCallback(async (url, options = {}) => {
-    const token = user?.token || 'mock-token';
-    
+
     if (!token) {
       setTokenExpired(true);
       setError('No hay token de autenticación');
@@ -165,251 +180,165 @@ const Dashboard = ({ user, onLogout }) => {
     }
 
     try {
-      console.log('🌐 API Call:', url, options.method || 'GET');
-      
-      // Simular llamada a API
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Simular respuestas según el endpoint
-      if (url.includes('/api/qr-code')) {
-        return {
-          success: true,
-          hasActiveQR: true,
-          qrInfo: {
-            image: generateMockQR(),
-            expiresAt: Date.now() + 60000,
-            createdAt: Date.now()
-          }
-        };
-      } else if (url.includes('/api/qr-request')) {
-        return {
-          success: true,
-          message: 'QR solicitado correctamente'
-        };
-      } else if (url.includes('/api/qr-expire')) {
-        return {
-          success: true,
-          message: 'QR expirado correctamente'
-        };
+      setLoading(true);
+      setError('');
+
+      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+        method: options.method || 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined
+      });
+
+      if (response.status === 401) {
+        setTokenExpired(true);
+        throw new Error('Token expirado');
       }
-      
-      return { success: true };
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error en la solicitud');
+      }
+
+      return data;
     } catch (error) {
-      console.error('❌ Error en API:', error);
+      console.error(`❌ Error en API ${endpoint}:`, error);
+      setError(error.message);
       throw error;
-    }
-  }, [user]);
-
-  // Generar QR simulado
-  const generateMockQR = () => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 200;
-    canvas.height = 200;
-    const ctx = canvas.getContext('2d');
-    
-    // Fondo blanco
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 200, 200);
-    
-    // Patrón simple de QR
-    ctx.fillStyle = '#000000';
-    for (let i = 0; i < 20; i++) {
-      for (let j = 0; j < 20; j++) {
-        if (Math.random() > 0.5) {
-          ctx.fillRect(i * 10, j * 10, 10, 10);
-        }
-      }
-    }
-    
-    return canvas.toDataURL();
-  };
-
-  // Obtener código QR
-  const getQRCode = useCallback(async () => {
-    if (loading || !mountedRef.current) return;
-    
-    console.log('🔍 Obteniendo QR...');
-    setLoading(true);
-    setError('');
-    
-    try {
-      const data = await apiCall('/api/qr-code');
-      console.log('🔍 Respuesta QR:', data);
-      
-      if (data.success && mountedRef.current) {
-        handleQRUpdate(data.qrInfo);
-      } else if (mountedRef.current) {
-        setError('No se pudo obtener el código QR');
-      }
-    } catch (err) {
-      console.error('❌ Error al obtener QR:', err);
-      if (!tokenExpired && mountedRef.current) {
-        setError(`Error al obtener QR: ${err.message}`);
-      }
     } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
+      setLoading(false);
     }
-  }, [apiCall, tokenExpired, loading, handleQRUpdate]);
+  }, [token, apiBaseUrl]);
 
   // Solicitar nuevo QR
   const requestNewQR = useCallback(async () => {
-    if (loading || !mountedRef.current) return;
-    
-    console.log('🆕 Solicitando nuevo QR...');
-    setLoading(true);
-    setError('');
-    
-    // Limpiar estado anterior
-    setQrData(null);
-    stopCountdown();
-    setTimeRemaining(0);
-    lastQRUpdateRef.current = null;
-    
     try {
       await apiCall('/api/qr-request', { method: 'POST' });
-      console.log('🆕 Nuevo QR solicitado, esperando actualización...');
-      
-      // Simular recepción de QR después de un delay
-      setTimeout(() => {
-        if (!qrData?.qrCode && mountedRef.current) {
-          console.log('⏰ Timeout, obteniendo QR manualmente...');
-          getQRCode();
-        }
-      }, 2000);
-      
-    } catch (err) {
-      console.error('❌ Error al solicitar QR:', err);
-      if (!tokenExpired && mountedRef.current) {
-        setError(`Error al solicitar QR: ${err.message}`);
-      }
-    } finally {
-      if (mountedRef.current) {
-        setLoading(false);
-      }
+      addNotification('Nuevo QR solicitado correctamente', 'success');
+    } catch (error) {
+      addNotification(`Error al solicitar QR: ${error.message}`, 'error');
     }
-  }, [apiCall, tokenExpired, loading, getQRCode, qrData]);
+  }, [apiCall]);
 
   // Expirar QR manualmente
   const expireQR = useCallback(async () => {
-    if (loading || !mountedRef.current) return;
-    
     try {
       await apiCall('/api/qr-expire', { method: 'POST' });
-      console.log('💥 QR expirado manualmente');
-      
-      if (mountedRef.current) {
-        setQrData(null);
-        stopCountdown();
-        setTimeRemaining(0);
-        lastQRUpdateRef.current = null;
-      }
-      
-    } catch (err) {
-      console.error('❌ Error al expirar QR:', err);
-      if (!tokenExpired && mountedRef.current) {
-        setError(`Error al expirar QR: ${err.message}`);
-      }
+      addNotification('QR expirado manualmente', 'success');
+    } catch (error) {
+      addNotification(`Error al expirar QR: ${error.message}`, 'error');
     }
-  }, [apiCall, tokenExpired, loading]);
+  }, [apiCall]);
+
+  // Obtener estado actual
+  const getStatus = useCallback(async () => {
+    try {
+      const status = await apiCall('/api/qr-status');
+      handleStatusUpdate(status);
+      addNotification('Estado actualizado', 'info');
+    } catch (error) {
+      addNotification(`Error al obtener estado: ${error.message}`, 'error');
+    }
+  }, [apiCall, handleStatusUpdate]);
 
   // Iniciar contador
-  const startCountdown = useCallback((initialTime) => {
+  const startCountdown = (initialTime) => {
     stopCountdown();
-    
-    if (initialTime <= 0) {
-      console.log('⏰ Tiempo inicial inválido, no iniciando contador');
-      return;
-    }
-    
-    console.log(`⏰ Iniciando contador con ${initialTime}s`);
+
+    if (initialTime <= 0) return;
+
     setTimeRemaining(initialTime);
-    
+
     countdownRef.current = setInterval(() => {
-      setTimeRemaining(prevTime => {
-        const newTime = prevTime - 1;
-        
+      setTimeRemaining(prev => {
+        const newTime = prev - 1;
+
         if (newTime <= 0) {
-          console.log('⏰ Contador terminado');
           stopCountdown();
-          if (mountedRef.current) {
-            setQrData(null);
-            lastQRUpdateRef.current = null;
-          }
+          setQrData(null);
           return 0;
         }
         return newTime;
       });
     }, 1000);
-  }, []);
+  };
 
   // Detener contador
-  const stopCountdown = useCallback(() => {
+  const stopCountdown = () => {
     if (countdownRef.current) {
-      console.log('⏰ Deteniendo contador');
       clearInterval(countdownRef.current);
       countdownRef.current = null;
     }
+  };
+
+  // Efecto para conexión inicial
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeConnection = async () => {
+      if (!mounted) return;
+
+      connectWebSocket();
+
+      // Pequeño delay antes de obtener el estado inicial
+      setTimeout(() => {
+        if (mounted) {
+          getStatus();
+        }
+      }, 1000);
+    };
+
+    initializeConnection();
+
+    return () => {
+      mounted = false;
+      disconnectWebSocket();
+      stopCountdown();
+    };
   }, []);
 
-  // Formatear tiempo
-  const formatTime = useCallback((seconds) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-    
-    let className = 'time-normal';
-    if (seconds <= 10) className = 'time-critical';
-    else if (seconds <= 30) className = 'time-warning';
-    
-    return { timeString, className };
-  }, []);
+  // Efecto para manejar cambios en el QR
+  useEffect(() => {
+    if (qrData?.qrCode) {
+      // Extraer el string del QR de la URL de datos
+      const match = qrData.qrCode.match(/data:image\/[^;]+;base64,[^"]+/);
+      if (match) {
+        setQrString(match[0]);
+      }
+    }
+  }, [qrData]);
 
-  // Obtener porcentaje de tiempo
-  const getTimePercentage = useCallback((seconds, total = 60) => {
-    return Math.max(0, Math.min(100, (seconds / total) * 100));
-  }, []);
-
-  // Manejar logout
-  const handleLogout = useCallback(() => {
-    mountedRef.current = false;
-    stopCountdown();
-    disconnectWebSocket();
-    onLogout();
-  }, [stopCountdown, disconnectWebSocket, onLogout]);
-
-  // Skeleton de carga
-  const renderLoadingSkeleton = () => (
-    <div className="qr-skeleton">
-      <div className="skeleton-content">
-        <div className="skeleton-qr-image">
-          <div className="skeleton-qr-placeholder">
-            <div className="loading-dots">
-              <div className="dot"></div>
-              <div className="dot"></div>
-              <div className="dot"></div>
-            </div>
-            <p>Generando código QR...</p>
-          </div>
+  // Renderizar notificaciones
+  const renderNotifications = () => (
+    <div className="notifications-container">
+      {notifications.map(notification => (
+        <div key={notification.id} className={`notification ${notification.type}`}>
+          {notification.message}
         </div>
-      </div>
+      ))}
     </div>
   );
 
   // Renderizar contenido principal
   const renderContent = () => {
     if (loading) {
-      return renderLoadingSkeleton();
+      return (
+        <div className="loading-container">
+          <div className="spinner"></div>
+          <p>Cargando...</p>
+        </div>
+      );
     }
 
     if (tokenExpired) {
       return (
-        <div className="status-card token-expired">
-          <div className="status-icon">🔒</div>
+        <div className="status-card error">
           <h3>Sesión Expirada</h3>
           <p>Su sesión ha expirado. Por favor, inicie sesión nuevamente.</p>
-          <button onClick={handleLogout} className="btn btn-primary">
+          <button onClick={onLogout} className="btn btn-primary">
             Volver a Iniciar Sesión
           </button>
         </div>
@@ -419,219 +348,152 @@ const Dashboard = ({ user, onLogout }) => {
     if (connectionStatus.isConnected) {
       return (
         <div className="status-card connected">
-          <div className="status-icon">✅</div>
-          <h3>WhatsApp Conectado</h3>
-          <p>Tu cuenta de WhatsApp está conectada y funcionando correctamente.</p>
-          <div className="actions">
-            <button onClick={getQRCode} className="btn btn-secondary">
-              🔄 Actualizar Estado
-            </button>
+          <h3>✅ WhatsApp Conectado</h3>
+          <p>La conexión con WhatsApp está activa y funcionando correctamente.</p>
+          <div className="connection-details">
+            <p><strong>Estado:</strong> Conectado</p>
+            <p><strong>Última actualización:</strong> {new Date().toLocaleTimeString()}</p>
           </div>
+          <button onClick={getStatus} className="btn btn-secondary">
+            Actualizar Estado
+          </button>
         </div>
       );
     }
 
-    if (qrData?.qrCode) {
+    if (qrData) {
       const { timeString, className } = formatTime(timeRemaining);
-      const percentage = getTimePercentage(timeRemaining);
-      
+
       return (
         <div className="qr-container">
-          <div className="qr-image-wrapper">
-            <img 
-              src={qrData.qrCode} 
-              alt="Código QR de WhatsApp" 
-              className="qr-image"
-              onError={() => setError('Error al cargar la imagen del QR')}
-            />
-            <div className="qr-overlay">
-              <div className={`time-overlay ${className}`}>
-                {timeString}
+          <div className="qr-display">
+            {qrString ? (
+              <img src={qrString} />
+            ) : (
+              <div className="qr-placeholder">
+                <p>Cargando código QR...</p>
               </div>
-            </div>
-          </div>
-          
-          <div className="qr-info">
-            <div className="progress-container">
-              <div className="progress-bar">
-                <div 
-                  className="progress-fill" 
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-              <div className={`time-display ${className}`}>
-                <span>Tiempo restante: {timeString}</span>
-              </div>
-            </div>
-            
-            <div className="qr-details">
-              <div className="detail-row">
-                <span>Expira:</span>
-                <span>{new Date(qrData.expiresAt).toLocaleTimeString()}</span>
-              </div>
-              <div className="detail-row">
-                <span>Generado:</span>
-                <span>{new Date(qrData.createdAt).toLocaleTimeString()}</span>
-              </div>
-            </div>
-            
-            <div className="actions">
-              <button 
-                onClick={expireQR} 
-                className="btn btn-danger"
-                disabled={loading}
-              >
-                🔥 Expirar QR
-              </button>
-              <button 
-                onClick={getQRCode} 
-                className="btn btn-secondary"
-                disabled={loading}
-              >
-                🔄 Actualizar
-              </button>
-            </div>
-          </div>
-        </div>
-      );
-    }
+            )}
 
-    if (error) {
-      return (
-        <div className="status-card error">
-          <div className="status-icon">⚠️</div>
-          <h3>Error</h3>
-          <p>{error}</p>
-          <div className="actions">
-            <button onClick={() => setError('')} className="btn btn-secondary">
-              Descartar
-            </button>
-            <button onClick={getQRCode} className="btn btn-primary">
-              Reintentar
-            </button>
+            <div className={`qr-timer ${className}`}>
+              {timeString}
+            </div>
+          </div>
+
+          <div className="qr-controls">
+            <div className="qr-info">
+              <p><strong>Expira:</strong> {new Date(qrData.expiresAt).toLocaleTimeString()}</p>
+              <p><strong>Generado:</strong> {new Date(qrData.createdAt).toLocaleTimeString()}</p>
+            </div>
+
+            <div className="qr-actions">
+              <button onClick={expireQR} className="btn btn-danger">
+                Expirar QR
+              </button>
+              <button onClick={getStatus} className="btn btn-secondary">
+                Actualizar
+              </button>
+            </div>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="status-card no-qr">
-        <div className="status-icon">📱</div>
-        <h3>Código QR no disponible</h3>
-        <p>Genera un nuevo código QR para conectar tu WhatsApp.</p>
-        
-        <div className="actions">
-          <button 
-            onClick={requestNewQR} 
-            className="btn btn-primary" 
-            disabled={loading}
-          >
-            {loading ? 'Generando...' : '🔄 Generar Código QR'}
-          </button>
-          <button 
-            onClick={getQRCode} 
-            className="btn btn-secondary" 
-            disabled={loading}
-          >
-            🔍 Verificar Estado
-          </button>
-        </div>
+      <div className="status-card disconnected">
+        <h3>❌ WhatsApp Desconectado</h3>
+        <p>No hay una conexión activa con WhatsApp.</p>
+        <button
+          onClick={requestNewQR}
+          className="btn btn-primary"
+          disabled={loading}
+        >
+          Generar Nuevo QR
+        </button>
       </div>
     );
   };
 
-  // Effect principal
-  useEffect(() => {
-    mountedRef.current = true;
-    connectWebSocket();
-    
-    const timer = setTimeout(() => {
-      if (mountedRef.current) {
-        requestNewQR();
-      }
-    }, 1000);
-    
-    return () => {
-      mountedRef.current = false;
-      clearTimeout(timer);
-      stopCountdown();
-      disconnectWebSocket();
-    };
-  }, []);
-
-  // Effect para reconexión de usuario
-  useEffect(() => {
-    if (user?.userId && socketRef.current?.connected) {
-      socketRef.current.emit('join-user', user.userId);
-    }
-  }, [user?.userId]);
-
   return (
-    <div className="dashboard">
-      {/* Header */}
-      <header className="header">
-        <div className="header-left">
-          <div className="brand">
-            <h1>📱 WhatsApp Service</h1>
-            <span className="version">Dashboard v3.1 - Corregido</span>
-          </div>
-          <div className="connection-indicator">
-            {connectionStatus.isConnected ? (
-              <span className="status connected">✅ Conectado</span>
-            ) : connectionStatus.hasActiveQR ? (
-              <span className="status qr-active">🔄 QR Activo</span>
-            ) : (
-              <span className="status disconnected">❌ Desconectado</span>
-            )}
+    <div className="dashboard-container">
+      {renderNotifications()}
+
+      <header className="dashboard-header">
+        <div className="header-content">
+          <h1>WhatsApp Service Dashboard</h1>
+          <div className="user-info">
+            <span>{user?.username} ({user?.role})</span>
+            <button onClick={onLogout} className="btn btn-logout">
+              Cerrar Sesión
+            </button>
           </div>
         </div>
-        <div className="header-right">
-          <div className="user-info">
-            <span className="username">{user?.username || 'Usuario'}</span>
-            <span className="role">({user?.role || 'user'})</span>
-          </div>
-          <button onClick={handleLogout} className="btn btn-logout">
-            🚪 Cerrar Sesión
-          </button>
+
+        <div className="connection-status">
+          <span className={`status-indicator ${connectionStatus.isConnected ? 'connected' : 'disconnected'}`}>
+            {connectionStatus.isConnected ? '✅ Conectado' : '❌ Desconectado'}
+          </span>
+          <span className="socket-status">
+            {socketRef.current?.connected ? '🟢 WebSocket' : '🔴 WebSocket'}
+          </span>
         </div>
       </header>
 
-      {/* Main content */}
-      <main className="main-content">
-        <div className="qr-section">
-          <div className="section-header">
-            <h2>🔐 Autenticación WhatsApp</h2>
-            <p>Escanea el código QR con la cámara de tu teléfono desde WhatsApp</p>
-            <div className="websocket-indicator">
-              <span className={socketConnected ? 'connected' : 'disconnected'}>
-                {socketConnected ? '🟢' : '🔴'} WebSocket: {socketConnected ? 'Conectado' : 'Desconectado'}
+      <main className="dashboard-main">
+        <section className="qr-section">
+          <h2>Autenticación WhatsApp</h2>
+          <div className="qr-instructions">
+            <ol>
+              <li>Abre WhatsApp en tu teléfono</li>
+              <li>Ve a Configuración → Dispositivos vinculados</li>
+              <li>Toca "Vincular un dispositivo"</li>
+              <li>Escanea el código QR mostrado</li>
+            </ol>
+          </div>
+
+          <div className="qr-content">
+            {renderContent()}
+          </div>
+        </section>
+
+        <section className="status-section">
+          <h2>Estado del Servicio</h2>
+          <div className="status-details">
+            <div className="status-item">
+              <span>Conexión WhatsApp:</span>
+              <span className={connectionStatus.isConnected ? 'connected' : 'disconnected'}>
+                {connectionStatus.isConnected ? 'Activa' : 'Inactiva'}
+              </span>
+            </div>
+
+            <div className="status-item">
+              <span>Estado QR:</span>
+              <span>
+                {connectionStatus.hasActiveQR ? 'Activo' : 'Inactivo'}
+              </span>
+            </div>
+
+            <div className="status-item">
+              <span>Tiempo restante:</span>
+              <span>{formatTime(timeRemaining).timeString}</span>
+            </div>
+
+            <div className="status-item">
+              <span>Socket:</span>
+              <span className={socketRef.current?.connected ? 'connected' : 'disconnected'}>
+                {socketRef.current?.connected ? 'Conectado' : 'Desconectado'}
               </span>
             </div>
           </div>
-          
-          <div className="content-area">
-            {renderContent()}
-          </div>
-        </div>
 
-        <div className="info-section">
-          <h3>📋 Instrucciones</h3>
-          <ol className="instructions">
-            <li>Abre WhatsApp en tu teléfono</li>
-            <li>Ve a Configuración → Dispositivos vinculados</li>
-            <li>Toca "Vincular un dispositivo"</li>
-            <li>Escanea el código QR mostrado</li>
-          </ol>
-        </div>
+          <button onClick={getStatus} className="btn btn-secondary">
+            Actualizar Estado
+          </button>
+        </section>
       </main>
 
-      {/* Footer */}
-      <footer className="footer">
-        <div className="footer-info">
-          <span>Actualizado: {new Date().toLocaleTimeString()}</span>
-          <span>Tiempo: {formatTime(timeRemaining).timeString}</span>
-          <span>WS: {socketConnected ? '🟢' : '🔴'}</span>
-        </div>
+      <footer className="dashboard-footer">
+        <p>WhatsApp Service v1.0 - {new Date().toLocaleString()}</p>
       </footer>
     </div>
   );
