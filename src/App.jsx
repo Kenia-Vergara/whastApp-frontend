@@ -28,9 +28,9 @@ function App() {
       } else {
         setIsAuthenticated(false);
         setUser(null);
-      }
-      setIsLoading(false);
-    };
+      };
+        setIsLoading(false);
+    }
 
     checkAuthStatus();
   }, []);
