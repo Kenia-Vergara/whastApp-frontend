@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { io } from 'socket.io-client';
+import MessageSender from './MessageSender';
 import './Dashboard.css'
 
 const Dashboard = ({ user, onLogout }) => {
@@ -17,6 +18,7 @@ const Dashboard = ({ user, onLogout }) => {
   });
   const [notifications, setNotifications] = useState([]);
   const [qrString, setQrString] = useState('');
+  const [sentMessages, setSentMessages] = useState([]);
 
   // Referencias
   const countdownRef = useRef(null);
@@ -48,29 +50,69 @@ const Dashboard = ({ user, onLogout }) => {
     }, 5000);
   };
 
+  // Manejar mensaje enviado exitosamente
+  const handleMessageSent = (messageData) => {
+    setSentMessages(prev => [messageData, ...prev.slice(0, 9)]); // Mantener solo los últimos 10
+    addNotification(`Mensaje enviado exitosamente a ${messageData.phone}`, 'success');
+  };
+
   const handleResetAuth = async (e) => {
     try {
+      setLoading(true);
+      
       // Llamada directa al backend
-      const response = await fetch(`${API_BASE_URL}/api/auth/reset`, {
+      const response = await fetch(`${apiBaseUrl}/api/auth/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer: ${token}`
+          'Authorization': `Bearer ${token}`
         },
       });
 
       const data = await response.json();
 
       if (data.success) {
-        addNotification('Carpeta Auth eliminada', 'success')
+        addNotification('Carpeta Auth eliminada correctamente', 'success');
+        // Actualizar el estado después de eliminar auth
+        setTimeout(() => {
+          getStatus();
+        }, 1000);
       } else {
-        setError(data.message || 'Error en el inicio de sesión');
+        setError(data.message || 'Error al eliminar la carpeta auth');
       }
     } catch (err) {
-      console.log(err)
+      console.log(err);
       setError('Error de conexión. Verifica que el backend esté funcionando en el puerto 5111.');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Verificar estado de auth
+  const checkAuthStatus = async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/auth-status`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.authStatus.exists) {
+          addNotification(`Carpeta auth_info existe (${data.authStatus.details.size} bytes)`, 'info');
+        } else {
+          addNotification('Carpeta auth_info no existe', 'warning');
+        }
+      } else {
+        setError(data.message || 'Error al verificar estado de auth');
+      }
+    } catch (err) {
+      console.log(err);
+      setError('Error de conexión al verificar estado de auth');
     }
   }
 
@@ -242,12 +284,41 @@ const Dashboard = ({ user, onLogout }) => {
   // Solicitar nuevo QR
   const requestNewQR = useCallback(async () => {
     try {
-      await apiCall('/api/qr-request', { method: 'POST' });
-      addNotification('Nuevo QR solicitado correctamente', 'success');
+      const result = await apiCall('/api/qr-request', { method: 'POST' });
+      
+      if (result.success && result.currentStatus) {
+        // Actualizar el estado inmediatamente con la respuesta del servidor
+        handleStatusUpdate(result.currentStatus);
+        addNotification('Nuevo QR solicitado correctamente', 'success');
+        
+        // Si el QR está procesándose, hacer polling cada 2 segundos hasta que se genere
+        if (result.status === 'processing') {
+          const pollInterval = setInterval(async () => {
+            try {
+              const status = await apiCall('/api/qr-status');
+              if (status.hasActiveQR && status.qrData) {
+                handleStatusUpdate(status);
+                clearInterval(pollInterval);
+                addNotification('QR generado exitosamente', 'success');
+              }
+            } catch (error) {
+              console.error('Error polling QR status:', error);
+              clearInterval(pollInterval);
+            }
+          }, 2000);
+          
+          // Limpiar el intervalo después de 30 segundos para evitar polling infinito
+          setTimeout(() => {
+            clearInterval(pollInterval);
+          }, 30000);
+        }
+      } else {
+        addNotification('QR solicitado, pero no se pudo obtener el estado actual', 'warning');
+      }
     } catch (error) {
       addNotification(`Error al solicitar QR: ${error.message}`, 'error');
     }
-  }, [apiCall]);
+  }, [apiCall, handleStatusUpdate]);
 
   // Expirar QR manualmente
   const expireQR = useCallback(async () => {
@@ -384,7 +455,10 @@ const Dashboard = ({ user, onLogout }) => {
             Actualizar Estado
           </button>
           <button onClick={handleResetAuth} className="btn btn-secondary">
-            Elimninar Auth_info
+            Eliminar Auth_info
+          </button>
+          <button onClick={checkAuthStatus} className="btn btn-secondary">
+            Verificar Auth
           </button>
         </div>
       );
@@ -519,6 +593,39 @@ const Dashboard = ({ user, onLogout }) => {
             Actualizar Estado
           </button>
         </section>
+
+        {/* Sección de envío de mensajes */}
+        {connectionStatus.isConnected && (
+          <MessageSender 
+            isConnected={connectionStatus.isConnected}
+            onMessageSent={handleMessageSent}
+          />
+        )}
+        
+
+        {/* Sección de mensajes enviados */}
+        {sentMessages.length > 0 && (
+          <section className="sent-messages-section">
+            <h2>📤 Mensajes Enviados Recientemente</h2>
+            <div className="sent-messages-list">
+              {sentMessages.map((message, index) => (
+                <div key={index} className="sent-message-item">
+                  <div className="message-header">
+                    <span className="phone-number">📱 {message.phone}</span>
+                    <span className="template-type">📝 {message.template}</span>
+                  </div>
+                  <div className="message-details">
+                    <span className="sent-time">🕐 {new Date(message.sentAt).toLocaleString()}</span>
+                    <span className="message-id">🆔 {message.messageId}</span>
+                  </div>
+                  <div className="message-preview">
+                    {message.messagePreview}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       <footer className="dashboard-footer">
