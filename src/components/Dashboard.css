@@ -385,3 +385,160 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Sección de mensajes enviados */
+.sent-messages-section {
+  margin-top: 30px;
+  padding: 20px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e1e5e9;
+}
+
+.sent-messages-section h2 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 2px solid #27ae60;
+  padding-bottom: 10px;
+}
+
+.sent-messages-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.sent-message-item {
+  background: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+
+.sent-message-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  border-color: #27ae60;
+}
+
+.message-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.phone-number {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 0.95rem;
+}
+
+.template-type {
+  background: #3498db;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.message-details {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 0.85rem;
+  color: #6c757d;
+}
+
+.sent-time {
+  background: #e9ecef;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.message-id {
+  background: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.8rem;
+  border: 1px solid #dee2e6;
+}
+
+.message-preview {
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 0.9rem;
+  color: #495057;
+  line-height: 1.4;
+  max-height: 100px;
+  overflow-y: auto;
+  position: relative;
+}
+
+.message-preview::before {
+  content: '"';
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  font-size: 1.2rem;
+  color: #6c757d;
+  font-weight: bold;
+}
+
+.message-preview::after {
+  content: '"';
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  font-size: 1.2rem;
+  color: #6c757d;
+  font-weight: bold;
+}
+
+/* Responsive para mensajes enviados */
+@media (max-width: 768px) {
+  .message-header,
+  .message-details {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+  
+  .sent-messages-section {
+    padding: 16px;
+  }
+  
+  .sent-message-item {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .sent-messages-section h2 {
+    font-size: 1.1rem;
+  }
+  
+  .phone-number,
+  .template-type {
+    font-size: 0.9rem;
+  }
+  
+  .message-preview {
+    font-size: 0.85rem;
+    padding: 10px;
+  }
+}
