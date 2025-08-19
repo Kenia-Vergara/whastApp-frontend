@@ -1,101 +1,107 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { io } from 'socket.io-client';
-import MessageSender from './MessageSender';
-import './Dashboard.css'
+import { useState, useEffect, useRef, useCallback } from "react";
+import { io } from "socket.io-client";
+import MessageSender from "./MessageSender";
+import "./Dashboard.css";
 
 const Dashboard = ({ user, onLogout }) => {
   // Estados principales
   const [qrData, setQrData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [tokenExpired, setTokenExpired] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState({
     hasActiveQR: false,
     isConnected: false,
     qrInfo: null,
-    connectionState: {}
+    connectionState: {},
   });
   const [notifications, setNotifications] = useState([]);
-  const [qrString, setQrString] = useState('');
+  const [qrString, setQrString] = useState("");
   const [sentMessages, setSentMessages] = useState([]);
 
   // Referencias
   const countdownRef = useRef(null);
   const socketRef = useRef(null);
-  const apiBaseUrl = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:5111';
-  const token = localStorage.getItem('token');
+  const apiBaseUrl =
+    import.meta.env?.VITE_API_BASE_URL || "http://localhost:5111";
+  const token = localStorage.getItem("token");
 
   // Formatear tiempo
   const formatTime = (seconds) => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
-    const timeString = `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    const timeString = `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`;
 
-    let className = 'time-normal';
-    if (seconds <= 10) className = 'time-critical';
-    else if (seconds <= 30) className = 'time-warning';
+    let className = "time-normal";
+    if (seconds <= 10) className = "time-critical";
+    else if (seconds <= 30) className = "time-warning";
 
     return { timeString, className };
   };
 
   // Agregar notificación
-  const addNotification = (message, type = 'info') => {
+  const addNotification = (message, type = "info") => {
     const id = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`; // ID más único
-    setNotifications(prev => [...prev, { id, message, type }]);
+    setNotifications((prev) => [...prev, { id, message, type }]);
 
     // Auto-eliminar después de 5 segundos
     setTimeout(() => {
-      setNotifications(prev => prev.filter(n => n.id !== id));
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
     }, 5000);
   };
 
   // Manejar mensaje enviado exitosamente
   const handleMessageSent = (messageData) => {
-    setSentMessages(prev => [messageData, ...prev.slice(0, 9)]); // Mantener solo los últimos 10
-    addNotification(`Mensaje enviado exitosamente a ${messageData.phone}`, 'success');
+    setSentMessages((prev) => [messageData, ...prev.slice(0, 9)]); // Mantener solo los últimos 10
+    addNotification(
+      `Mensaje enviado exitosamente a ${messageData.phone}`,
+      "success",
+    );
   };
 
   const handleResetAuth = async (e) => {
     try {
       setLoading(true);
-      
+
       // Llamada directa al backend
       const response = await fetch(`${apiBaseUrl}/api/auth/reset`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
 
       const data = await response.json();
 
       if (data.success) {
-        addNotification('Carpeta Auth eliminada correctamente', 'success');
+        addNotification("Carpeta Auth eliminada correctamente", "success");
         // Actualizar el estado después de eliminar auth
         setTimeout(() => {
           getStatus();
         }, 1000);
       } else {
-        setError(data.message || 'Error al eliminar la carpeta auth');
+        setError(data.message || "Error al eliminar la carpeta auth");
       }
     } catch (err) {
       console.log(err);
-      setError('Error de conexión. Verifica que el backend esté funcionando en el puerto 5111.');
+      setError(
+        "Error de conexión. Verifica que el backend esté funcionando en el puerto 5111.",
+      );
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   // Verificar estado de auth
   const checkAuthStatus = async () => {
     try {
       const response = await fetch(`${apiBaseUrl}/api/auth-status`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -103,25 +109,28 @@ const Dashboard = ({ user, onLogout }) => {
 
       if (data.success) {
         if (data.authStatus.exists) {
-          addNotification(`Carpeta auth_info existe (${data.authStatus.details.size} bytes)`, 'info');
+          addNotification(
+            `Carpeta auth_info existe (${data.authStatus.details.size} bytes)`,
+            "info",
+          );
         } else {
-          addNotification('Carpeta auth_info no existe', 'warning');
+          addNotification("Carpeta auth_info no existe", "warning");
         }
       } else {
-        setError(data.message || 'Error al verificar estado de auth');
+        setError(data.message || "Error al verificar estado de auth");
       }
     } catch (err) {
       console.log(err);
-      setError('Error de conexión al verificar estado de auth');
+      setError("Error de conexión al verificar estado de auth");
     }
-  }
+  };
 
   // Conectar WebSocket
   const connectWebSocket = useCallback(() => {
     if (!token || socketRef.current?.connected) return;
 
     try {
-      console.log('🔌 Conectando WebSocket...');
+      console.log("🔌 Conectando WebSocket...");
 
       const socket = io(apiBaseUrl, {
         auth: { token: token },
@@ -130,58 +139,58 @@ const Dashboard = ({ user, onLogout }) => {
         reconnectionDelayMax: 5000,
         maxReconnectionAttempts: 3,
         timeout: 10000,
-        transports: ['websocket'],
-        forceNew: true // Fuerza una nueva conexión
+        transports: ["websocket"],
+        forceNew: true, // Fuerza una nueva conexión
       });
 
-      socket.on('connect', () => {
-        console.log('✅ WebSocket conectado');
-        addNotification('Conexión en tiempo real establecida', 'success');
+      socket.on("connect", () => {
+        console.log("✅ WebSocket conectado");
+        addNotification("Conexión en tiempo real establecida", "success");
       });
 
-      socket.on('disconnect', (reason) => {
-        console.log('❌ WebSocket desconectado:', reason);
+      socket.on("disconnect", (reason) => {
+        console.log("❌ WebSocket desconectado:", reason);
 
         // NO reconectes automáticamente - deja que socket.io maneje esto
         // Solo notifica al usuario
-        if (reason === 'io server disconnect') {
-          addNotification('Servidor desconectado', 'warning');
-        } else if (reason === 'io client disconnect') {
-          addNotification('Desconectado por cliente', 'info');
+        if (reason === "io server disconnect") {
+          addNotification("Servidor desconectado", "warning");
+        } else if (reason === "io client disconnect") {
+          addNotification("Desconectado por cliente", "info");
         } else {
-          addNotification('Conexión perdida', 'warning');
+          addNotification("Conexión perdida", "warning");
         }
       });
 
-      socket.on('reconnect', (attemptNumber) => {
-        console.log('🔄 Reconectado después de', attemptNumber, 'intentos');
-        addNotification('Reconectado exitosamente', 'success');
+      socket.on("reconnect", (attemptNumber) => {
+        console.log("🔄 Reconectado después de", attemptNumber, "intentos");
+        addNotification("Reconectado exitosamente", "success");
       });
 
-      socket.on('reconnect_error', (error) => {
-        console.error('❌ Error de reconexión:', error);
-        addNotification('Error al reconectar', 'error');
+      socket.on("reconnect_error", (error) => {
+        console.error("❌ Error de reconexión:", error);
+        addNotification("Error al reconectar", "error");
       });
 
-      socket.on('reconnect_failed', () => {
-        console.error('❌ Falló la reconexión después de todos los intentos');
-        addNotification('No se pudo reconectar. Recarga la página.', 'error');
+      socket.on("reconnect_failed", () => {
+        console.error("❌ Falló la reconexión después de todos los intentos");
+        addNotification("No se pudo reconectar. Recarga la página.", "error");
       });
 
-      socket.on('connect_error', (err) => {
-        console.error('❌ Error de conexión WebSocket:', err.message);
-        addNotification(`Error de conexión: ${err.message}`, 'error');
+      socket.on("connect_error", (err) => {
+        console.error("❌ Error de conexión WebSocket:", err.message);
+        addNotification(`Error de conexión: ${err.message}`, "error");
       });
 
-      socket.on('qr-status-update', (status) => {
-        console.log('📊 Actualización de estado:', status);
+      socket.on("qr-status-update", (status) => {
+        console.log("📊 Actualización de estado:", status);
         handleStatusUpdate(status);
       });
 
       socketRef.current = socket;
     } catch (error) {
-      console.error('❌ Error al conectar WebSocket:', error);
-      addNotification('Error al conectar con el servidor', 'error');
+      console.error("❌ Error al conectar WebSocket:", error);
+      addNotification("Error al conectar con el servidor", "error");
     }
   }, [token, apiBaseUrl]);
 
@@ -191,30 +200,30 @@ const Dashboard = ({ user, onLogout }) => {
       socketRef.current.removeAllListeners(); // Limpia todos los listeners
       socketRef.current.disconnect();
       socketRef.current = null;
-      console.log('❌ WebSocket desconectado y limpiado');
+      console.log("❌ WebSocket desconectado y limpiado");
     }
   }, []);
 
   // Manejar actualizaciones de estado
   const handleStatusUpdate = useCallback((data) => {
-    console.log('📊 Actualizando estado:', data);
+    console.log("📊 Actualizando estado:", data);
 
-    setConnectionStatus(prev => ({
+    setConnectionStatus((prev) => ({
       ...prev,
       hasActiveQR: data.hasActiveQR || false,
       isConnected: data.isConnected || false,
       qrInfo: data.qrData || null,
-      connectionState: data.connectionState || {}
+      connectionState: data.connectionState || {},
     }));
 
     setTokenExpired(false);
-    setError('');
+    setError("");
 
     if (data.qrData?.image) {
       setQrData({
         qrCode: data.qrData.image,
         expiresAt: data.qrData.expiresAt,
-        createdAt: data.qrData.createdAt
+        createdAt: data.qrData.createdAt,
       });
 
       const now = Date.now();
@@ -238,106 +247,110 @@ const Dashboard = ({ user, onLogout }) => {
   }, []);
 
   // Llamadas API reales
-  const apiCall = useCallback(async (endpoint, options = {}) => {
-
-
-    if (!token) {
-      setTokenExpired(true);
-      setError('No hay token de autenticación');
-      throw new Error('No token available');
-    }
-
-    try {
-      setLoading(true);
-      setError('');
-
-      const response = await fetch(`${apiBaseUrl}${endpoint}`, {
-        method: options.method || 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: options.body ? JSON.stringify(options.body) : undefined
-      });
-
-      if (response.status === 401) {
+  const apiCall = useCallback(
+    async (endpoint, options = {}) => {
+      if (!token) {
         setTokenExpired(true);
-        throw new Error('Token expirado');
+        setError("No hay token de autenticación");
+        throw new Error("No token available");
       }
 
-      const data = await response.json();
+      try {
+        setLoading(true);
+        setError("");
 
-      if (!response.ok) {
-        throw new Error(data.message || 'Error en la solicitud');
+        const response = await fetch(`${apiBaseUrl}${endpoint}`, {
+          method: options.method || "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: options.body ? JSON.stringify(options.body) : undefined,
+        });
+
+        if (response.status === 401) {
+          setTokenExpired(true);
+          throw new Error("Token expirado");
+        }
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.message || "Error en la solicitud");
+        }
+
+        return data;
+      } catch (error) {
+        console.error(`❌ Error en API ${endpoint}:`, error);
+        setError(error.message);
+        throw error;
+      } finally {
+        setLoading(false);
       }
-
-      return data;
-    } catch (error) {
-      console.error(`❌ Error en API ${endpoint}:`, error);
-      setError(error.message);
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  }, [token, apiBaseUrl]);
+    },
+    [token, apiBaseUrl],
+  );
 
   // Solicitar nuevo QR
   const requestNewQR = useCallback(async () => {
     try {
-      const result = await apiCall('/api/qr-request', { method: 'POST' });
-      
+      const result = await apiCall("/api/qr-request", { method: "POST" });
+
       if (result.success && result.currentStatus) {
         // Actualizar el estado inmediatamente con la respuesta del servidor
         handleStatusUpdate(result.currentStatus);
-        addNotification('Nuevo QR solicitado correctamente', 'success');
-        
+        addNotification("Nuevo QR solicitado correctamente", "success");
+
         // Si el QR está procesándose, hacer polling cada 2 segundos hasta que se genere
-        if (result.status === 'processing') {
+        if (result.status === "processing") {
           const pollInterval = setInterval(async () => {
             try {
-              const status = await apiCall('/api/qr-status');
+              const status = await apiCall("/api/qr-status");
               if (status.hasActiveQR && status.qrData) {
                 handleStatusUpdate(status);
                 clearInterval(pollInterval);
-                addNotification('QR generado exitosamente', 'success');
+                addNotification("QR generado exitosamente", "success");
               }
             } catch (error) {
-              console.error('Error polling QR status:', error);
+              console.error("Error polling QR status:", error);
               clearInterval(pollInterval);
             }
           }, 2000);
-          
+
           // Limpiar el intervalo después de 30 segundos para evitar polling infinito
           setTimeout(() => {
             clearInterval(pollInterval);
           }, 30000);
         }
       } else {
-        addNotification('QR solicitado, pero no se pudo obtener el estado actual', 'warning');
+        addNotification(
+          "QR solicitado, pero no se pudo obtener el estado actual",
+          "warning",
+        );
       }
     } catch (error) {
-      addNotification(`Error al solicitar QR: ${error.message}`, 'error');
+      addNotification(`Error al solicitar QR: ${error.message}`, "error");
     }
   }, [apiCall, handleStatusUpdate]);
 
   // Expirar QR manualmente
   const expireQR = useCallback(async () => {
     try {
-      await apiCall('/api/qr-expire', { method: 'POST' });
-      addNotification('QR expirado manualmente', 'success');
+      await apiCall("/api/qr-expire", { method: "POST" });
+      addNotification("QR expirado manualmente", "success");
     } catch (error) {
-      addNotification(`Error al expirar QR: ${error.message}`, 'error');
+      addNotification(`Error al expirar QR: ${error.message}`, "error");
     }
   }, [apiCall]);
 
   // Obtener estado actual
   const getStatus = useCallback(async () => {
     try {
-      const status = await apiCall('/api/qr-status');
+      const status = await apiCall("/api/qr-status");
       handleStatusUpdate(status);
-      addNotification('Estado actualizado', 'info');
+      addNotification("Estado actualizado", "info");
     } catch (error) {
-      addNotification(`Error al obtener estado: ${error.message}`, 'error');
+      addNotification(`Error al obtener estado: ${error.message}`, "error");
     }
   }, [apiCall, handleStatusUpdate]);
 
@@ -350,7 +363,7 @@ const Dashboard = ({ user, onLogout }) => {
     setTimeRemaining(initialTime);
 
     countdownRef.current = setInterval(() => {
-      setTimeRemaining(prev => {
+      setTimeRemaining((prev) => {
         const newTime = prev - 1;
 
         if (newTime <= 0) {
@@ -411,8 +424,11 @@ const Dashboard = ({ user, onLogout }) => {
   // Renderizar notificaciones
   const renderNotifications = () => (
     <div className="notifications-container">
-      {notifications.map(notification => (
-        <div key={notification.id} className={`notification ${notification.type}`}>
+      {notifications.map((notification) => (
+        <div
+          key={notification.id}
+          className={`notification ${notification.type}`}
+        >
           {notification.message}
         </div>
       ))}
@@ -446,10 +462,17 @@ const Dashboard = ({ user, onLogout }) => {
       return (
         <div className="status-card connected">
           <h3>✅ WhatsApp Conectado</h3>
-          <p>La conexión con WhatsApp está activa y funcionando correctamente.</p>
+          <p>
+            La conexión con WhatsApp está activa y funcionando correctamente.
+          </p>
           <div className="connection-details">
-            <p><strong>Estado:</strong> Conectado</p>
-            <p><strong>Última actualización:</strong> {new Date().toLocaleTimeString()}</p>
+            <p>
+              <strong>Estado:</strong> Conectado
+            </p>
+            <p>
+              <strong>Última actualización:</strong>{" "}
+              {new Date().toLocaleTimeString()}
+            </p>
           </div>
           <button onClick={getStatus} className="btn btn-secondary">
             Actualizar Estado
@@ -478,15 +501,19 @@ const Dashboard = ({ user, onLogout }) => {
               </div>
             )}
 
-            <div className={`qr-timer ${className}`}>
-              {timeString}
-            </div>
+            <div className={`qr-timer ${className}`}>{timeString}</div>
           </div>
 
           <div className="qr-controls">
             <div className="qr-info">
-              <p><strong>Expira:</strong> {new Date(qrData.expiresAt).toLocaleTimeString()}</p>
-              <p><strong>Generado:</strong> {new Date(qrData.createdAt).toLocaleTimeString()}</p>
+              <p>
+                <strong>Expira:</strong>{" "}
+                {new Date(qrData.expiresAt).toLocaleTimeString()}
+              </p>
+              <p>
+                <strong>Generado:</strong>{" "}
+                {new Date(qrData.createdAt).toLocaleTimeString()}
+              </p>
             </div>
 
             <div className="qr-actions">
@@ -525,7 +552,9 @@ const Dashboard = ({ user, onLogout }) => {
         <div className="header-content">
           <h1>WhatsApp Service Dashboard</h1>
           <div className="user-info">
-            <span>{user?.username} ({user?.role})</span>
+            <span>
+              {user?.username} ({user?.role})
+            </span>
             <button onClick={onLogout} className="btn btn-logout">
               Cerrar Sesión
             </button>
@@ -533,11 +562,13 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
 
         <div className="connection-status">
-          <span className={`status-indicator ${connectionStatus.isConnected ? 'connected' : 'disconnected'}`}>
-            {connectionStatus.isConnected ? '✅ Conectado' : '❌ Desconectado'}
+          <span
+            className={`status-indicator ${connectionStatus.isConnected ? "connected" : "disconnected"}`}
+          >
+            {connectionStatus.isConnected ? "✅ Conectado" : "❌ Desconectado"}
           </span>
           <span className="socket-status">
-            {socketRef.current?.connected ? '🟢 WebSocket' : '🔴 WebSocket'}
+            {socketRef.current?.connected ? "🟢 WebSocket" : "🔴 WebSocket"}
           </span>
         </div>
       </header>
@@ -554,9 +585,7 @@ const Dashboard = ({ user, onLogout }) => {
             </ol>
           </div>
 
-          <div className="qr-content">
-            {renderContent()}
-          </div>
+          <div className="qr-content">{renderContent()}</div>
         </section>
 
         <section className="status-section">
@@ -564,15 +593,19 @@ const Dashboard = ({ user, onLogout }) => {
           <div className="status-details">
             <div className="status-item">
               <span>Conexión WhatsApp:</span>
-              <span className={connectionStatus.isConnected ? 'connected' : 'disconnected'}>
-                {connectionStatus.isConnected ? 'Activa' : 'Inactiva'}
+              <span
+                className={
+                  connectionStatus.isConnected ? "connected" : "disconnected"
+                }
+              >
+                {connectionStatus.isConnected ? "Activa" : "Inactiva"}
               </span>
             </div>
 
             <div className="status-item">
               <span>Estado QR:</span>
               <span>
-                {connectionStatus.hasActiveQR ? 'Activo' : 'Inactivo'}
+                {connectionStatus.hasActiveQR ? "Activo" : "Inactivo"}
               </span>
             </div>
 
@@ -583,8 +616,12 @@ const Dashboard = ({ user, onLogout }) => {
 
             <div className="status-item">
               <span>Socket:</span>
-              <span className={socketRef.current?.connected ? 'connected' : 'disconnected'}>
-                {socketRef.current?.connected ? 'Conectado' : 'Desconectado'}
+              <span
+                className={
+                  socketRef.current?.connected ? "connected" : "disconnected"
+                }
+              >
+                {socketRef.current?.connected ? "Conectado" : "Desconectado"}
               </span>
             </div>
           </div>
@@ -592,16 +629,21 @@ const Dashboard = ({ user, onLogout }) => {
           <button onClick={getStatus} className="btn btn-secondary">
             Actualizar Estado
           </button>
+          <button onClick={handleResetAuth} className="btn btn-secondary">
+            Eliminar Auth_info
+          </button>
+          <button onClick={checkAuthStatus} className="btn btn-secondary">
+            Verificar Auth
+          </button>
         </section>
 
         {/* Sección de envío de mensajes */}
         {connectionStatus.isConnected && (
-          <MessageSender 
+          <MessageSender
             isConnected={connectionStatus.isConnected}
             onMessageSent={handleMessageSent}
           />
         )}
-        
 
         {/* Sección de mensajes enviados */}
         {sentMessages.length > 0 && (
@@ -615,7 +657,9 @@ const Dashboard = ({ user, onLogout }) => {
                     <span className="template-type">📝 {message.template}</span>
                   </div>
                   <div className="message-details">
-                    <span className="sent-time">🕐 {new Date(message.sentAt).toLocaleString()}</span>
+                    <span className="sent-time">
+                      🕐 {new Date(message.sentAt).toLocaleString()}
+                    </span>
                     <span className="message-id">🆔 {message.messageId}</span>
                   </div>
                   <div className="message-preview">
