@@ -574,102 +574,122 @@ const Dashboard = ({ user, onLogout }) => {
       </header>
 
       <main className="dashboard-main">
-        <section className="qr-section">
-          <h2>Autenticación WhatsApp</h2>
-          <div className="qr-instructions">
-            <ol>
-              <li>Abre WhatsApp en tu teléfono</li>
-              <li>Ve a Configuración → Dispositivos vinculados</li>
-              <li>Toca "Vincular un dispositivo"</li>
-              <li>Escanea el código QR mostrado</li>
-            </ol>
-          </div>
+        <div className="dashboard-grid">
+          {/* Sección QR y Estado */}
+          <div className="dashboard-column">
+            <section className="qr-section">
+              <h2>Autenticación WhatsApp</h2>
+              <div className="qr-instructions">
+                <ol>
+                  <li>Abre WhatsApp en tu teléfono</li>
+                  <li>Ve a Configuración → Dispositivos vinculados</li>
+                  <li>Toca "Vincular un dispositivo"</li>
+                  <li>Escanea el código QR mostrado</li>
+                </ol>
+              </div>
 
-          <div className="qr-content">{renderContent()}</div>
-        </section>
+              <div className="qr-content">{renderContent()}</div>
+            </section>
 
-        <section className="status-section">
-          <h2>Estado del Servicio</h2>
-          <div className="status-details">
-            <div className="status-item">
-              <span>Conexión WhatsApp:</span>
-              <span
-                className={
-                  connectionStatus.isConnected ? "connected" : "disconnected"
-                }
-              >
-                {connectionStatus.isConnected ? "Activa" : "Inactiva"}
-              </span>
-            </div>
-
-            <div className="status-item">
-              <span>Estado QR:</span>
-              <span>
-                {connectionStatus.hasActiveQR ? "Activo" : "Inactivo"}
-              </span>
-            </div>
-
-            <div className="status-item">
-              <span>Tiempo restante:</span>
-              <span>{formatTime(timeRemaining).timeString}</span>
-            </div>
-
-            <div className="status-item">
-              <span>Socket:</span>
-              <span
-                className={
-                  socketRef.current?.connected ? "connected" : "disconnected"
-                }
-              >
-                {socketRef.current?.connected ? "Conectado" : "Desconectado"}
-              </span>
-            </div>
-          </div>
-
-          <button onClick={getStatus} className="btn btn-secondary">
-            Actualizar Estado
-          </button>
-          <button onClick={handleResetAuth} className="btn btn-secondary">
-            Eliminar Auth_info
-          </button>
-          <button onClick={checkAuthStatus} className="btn btn-secondary">
-            Verificar Auth
-          </button>
-        </section>
-
-        {/* Sección de envío de mensajes */}
-        {connectionStatus.isConnected && (
-          <MessageSender
-            isConnected={connectionStatus.isConnected}
-            onMessageSent={handleMessageSent}
-          />
-        )}
-
-        {/* Sección de mensajes enviados */}
-        {sentMessages.length > 0 && (
-          <section className="sent-messages-section">
-            <h2>📤 Mensajes Enviados Recientemente</h2>
-            <div className="sent-messages-list">
-              {sentMessages.map((message, index) => (
-                <div key={index} className="sent-message-item">
-                  <div className="message-header">
-                    <span className="phone-number">📱 {message.phone}</span>
-                    <span className="template-type">📝 {message.template}</span>
-                  </div>
-                  <div className="message-details">
-                    <span className="sent-time">
-                      🕐 {new Date(message.sentAt).toLocaleString()}
-                    </span>
-                    <span className="message-id">🆔 {message.messageId}</span>
-                  </div>
-                  <div className="message-preview">
-                    {message.messagePreview}
-                  </div>
+            <section className="status-section">
+              <h2>Estado del Servicio</h2>
+              <div className="status-details">
+                <div className="status-item">
+                  <span>Conexión WhatsApp:</span>
+                  <span
+                    className={
+                      connectionStatus.isConnected
+                        ? "connected"
+                        : "disconnected"
+                    }
+                  >
+                    {connectionStatus.isConnected ? "Activa" : "Inactiva"}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+
+                <div className="status-item">
+                  <span>Estado QR:</span>
+                  <span>
+                    {connectionStatus.hasActiveQR ? "Activo" : "Inactivo"}
+                  </span>
+                </div>
+
+                <div className="status-item">
+                  <span>Tiempo restante:</span>
+                  <span>{formatTime(timeRemaining).timeString}</span>
+                </div>
+
+                <div className="status-item">
+                  <span>Socket:</span>
+                  <span
+                    className={
+                      socketRef.current?.connected
+                        ? "connected"
+                        : "disconnected"
+                    }
+                  >
+                    {socketRef.current?.connected
+                      ? "Conectado"
+                      : "Desconectado"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="status-actions">
+                <button onClick={getStatus} className="btn btn-secondary">
+                  Actualizar Estado
+                </button>
+                <button onClick={handleResetAuth} className="btn btn-secondary">
+                  Eliminar Auth
+                </button>
+                <button onClick={checkAuthStatus} className="btn btn-secondary">
+                  Verificar Auth
+                </button>
+              </div>
+            </section>
+          </div>
+
+          {/* Sección Mensajes */}
+          <div className="dashboard-column">
+            {/* Envío de mensajes */}
+            {connectionStatus.isConnected && (
+              <MessageSender
+                isConnected={connectionStatus.isConnected}
+                onMessageSent={handleMessageSent}
+              />
+            )}
+
+            {/* Mensajes enviados */}
+            {sentMessages.length > 0 && (
+              <section className="sent-messages-section">
+                <h2>📤 Mensajes Enviados Recientemente</h2>
+                <div className="sent-messages-list">
+                  {sentMessages.map((message, index) => (
+                    <div key={index} className="sent-message-item">
+                      <div className="message-header">
+                        <span className="phone-number">📱 {message.phone}</span>
+                        <span className="template-type">
+                          📝 {message.template}
+                        </span>
+                      </div>
+                      <div className="message-details">
+                        <span className="sent-time">
+                          🕐 {new Date(message.sentAt).toLocaleString()}
+                        </span>
+                        <span className="message-id">
+                          🆔 {message.messageId}
+                        </span>
+                      </div>
+                      <div className="message-preview">
+                        {message.messagePreview}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
       </main>
 
       <footer className="dashboard-footer">
