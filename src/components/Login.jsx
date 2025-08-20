@@ -136,18 +136,6 @@ const Login = ({ onLoginSuccess }) => {
             {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
           </button>
         </form>
-
-        <div className="login-footer">
-          <p>Credenciales por defecto:</p>
-          <p>
-            <strong>Usuario:</strong> usuario / <strong>Contraseña:</strong>{" "}
-            usuario123
-          </p>
-          <p>
-            <strong>Admin:</strong> admin / <strong>Contraseña:</strong>{" "}
-            admin123
-          </p>
-        </div>
       </div>
     </div>
   );
