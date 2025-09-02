@@ -3,9 +3,9 @@ import './MessageSender.css';
 
 const MessageSender = ({ isConnected, onMessageSent }) => {
   const [formData, setFormData] = useState({
-    phone: '',
+    telefono: '',
     templateOption: 'cita_gratis',
-    psicologo: '',
+    nombre: '',
     fecha: '',
     hora: ''
   });
@@ -33,7 +33,7 @@ const MessageSender = ({ isConnected, onMessageSent }) => {
     }));
 
     // Generar preview en tiempo real
-    if (name === 'templateOption' || name === 'psicologo' || name === 'fecha' || name === 'hora') {
+    if (name === 'templateOption' || name === 'nombre' || name === 'fecha' || name === 'hora') {
       generatePreview({
         ...formData,
         [name]: value
@@ -43,7 +43,7 @@ const MessageSender = ({ isConnected, onMessageSent }) => {
 
   // Generar preview del mensaje
   const generatePreview = (data) => {
-    if (!data.templateOption || !data.psicologo || !data.fecha || !data.hora) {
+    if (!data.templateOption || !data.nombre || !data.fecha || !data.hora) {
       setPreview('');
       return;
     }
@@ -55,7 +55,7 @@ const MessageSender = ({ isConnected, onMessageSent }) => {
 
 📅 Fecha: ${data.fecha}
 🕐 Hora: ${data.hora}
-👨‍⚕️ Psicólogo: ${data.psicologo}
+👨‍⚕️ Psicólogo: ${data.nombre}
 
 🎉 ¡Recuerda que tu primera consulta es completamente GRATIS!
 
@@ -69,7 +69,7 @@ Si tienes alguna consulta, no dudes en contactarnos.
 
 📅 Fecha: ${data.fecha}
 🕐 Hora: ${data.hora}
-👨‍⚕️ Psicólogo: ${data.psicologo}
+👨‍⚕️ Psicólogo: ${data.nombre}
 
 Por favor, realiza el pago antes de la consulta para confirmar tu reserva.
 
@@ -83,7 +83,7 @@ Si tienes dudas, contáctanos.
 
 📅 Fecha: ${data.fecha}
 🕐 Hora: ${data.hora}
-👨‍⚕️ Psicólogo: ${data.psicologo}
+👨‍⚕️ Psicólogo: ${data.nombre}
 
 Por favor, confirma tu asistencia respondiendo a este mensaje.
 
@@ -95,7 +95,7 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
 
 📅 Fecha: ${data.fecha}
 🕐 Hora: ${data.hora}
-👨‍⚕️ Psicólogo: ${data.psicologo}
+👨‍⚕️ Psicólogo: ${data.nombre}
 
 ¡Gracias por avisarnos!`
     };
@@ -105,12 +105,12 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
 
   // Validar formulario
   const validateForm = () => {
-    if (!formData.phone.trim()) {
+    if (!formData.telefono.trim()) {
       setError('El número de teléfono es requerido');
       return false;
     }
 
-    if (!formData.psicologo.trim()) {
+    if (!formData.nombre.trim()) {
       setError('El nombre del psicólogo es requerido');
       return false;
     }
@@ -126,8 +126,8 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
     }
 
     // Validar formato de teléfono
-    const cleanPhone = formData.phone.replace(/\D/g, '');
-    if (cleanPhone.length < 10 || cleanPhone.length > 15) {
+    const cleantelefono = formData.telefono.replace(/\D/g, '');
+    if (cleantelefono.length < 10 || cleantelefono.length > 15) {
       setError('El número de teléfono debe tener entre 10 y 15 dígitos');
       return false;
     }
@@ -182,13 +182,13 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
         throw new Error(data.message || 'Error al enviar mensaje');
       }
 
-      setSuccess(`Mensaje enviado exitosamente a ${formData.phone}`);
+      setSuccess(`Mensaje enviado exitosamente a ${formData.telefono}`);
       
       // Limpiar formulario
       setFormData({
-        phone: '',
+        telefono: '',
         templateOption: 'cita_gratis',
-        psicologo: '',
+        nombre: '',
         fecha: '',
         hora: ''
       });
@@ -238,12 +238,12 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
 
       <form onSubmit={handleSubmit} className="message-form">
         <div className="form-group">
-          <label htmlFor="phone">📞 Número de Teléfono *</label>
+          <label htmlFor="telefono">📞 Número de Teléfono *</label>
           <input
             type="tel"
-            id="phone"
-            name="phone"
-            value={formData.phone}
+            id="telefono"
+            name="telefono"
+            value={formData.telefono}
             onChange={handleInputChange}
             placeholder="Ej: +34 123 456 789"
             disabled={loading || !isConnected}
@@ -270,12 +270,12 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
         </div>
 
         <div className="form-group">
-          <label htmlFor="psicologo">👨‍⚕️ Nombre del Psicólogo *</label>
+          <label htmlFor="nombre">👨‍⚕️ Nombre del Psicólogo *</label>
           <input
             type="text"
-            id="psicologo"
-            name="psicologo"
-            value={formData.psicologo}
+            id="nombre"
+            name="nombre"
+            value={formData.nombre}
             onChange={handleInputChange}
             placeholder="Nombre completo del psicólogo"
             disabled={loading || !isConnected}
@@ -328,7 +328,7 @@ Por favor, confirma tu asistencia respondiendo a este mensaje.
             <pre>{preview}</pre>
           </div>
           <div className="preview-info">
-            <span>📱 Destinatario: {formData.phone || 'No especificado'}</span>
+            <span>📱 Destinatario: {formData.telefono || 'No especificado'}</span>
             <span>📊 Caracteres: {preview.length}</span>
           </div>
         </div>
