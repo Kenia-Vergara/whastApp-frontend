@@ -55,7 +55,7 @@ const Dashboard = ({ user, onLogout }) => {
   const handleMessageSent = (messageData) => {
     setSentMessages((prev) => [messageData, ...prev.slice(0, 9)]); // Mantener solo los últimos 10
     addNotification(
-      `Mensaje enviado exitosamente a ${messageData.phone}`,
+      `Mensaje enviado exitosamente a ${messageData.telefono}`,
       "success",
     );
   };
@@ -667,7 +667,7 @@ const Dashboard = ({ user, onLogout }) => {
                   {sentMessages.map((message, index) => (
                     <div key={index} className="sent-message-item">
                       <div className="message-header">
-                        <span className="phone-number">📱 {message.phone}</span>
+                        <span className="phone-number">📱 {message.telefono}</span>
                         <span className="template-type">
                           📝 {message.template}
                         </span>
