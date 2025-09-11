@@ -457,7 +457,7 @@ const Dashboard = ({ user, onLogout }) => {
         </div>
       );
     }
-
+ 
     if (connectionStatus.isConnected) {
       return (
         <div className="status-card connected">
@@ -587,6 +587,11 @@ const Dashboard = ({ user, onLogout }) => {
                   <li>Escanea el código QR mostrado</li>
                 </ol>
               </div>
+  <div className="problem-qr">
+    <p className="´">Si hay problemas presione: </p>
+    <button onClick={handleResetAuth} className="btn btn-secondary">
+      Eliminar QR
+    </button></div>
 
               <div className="qr-content">{renderContent()}</div>
             </section>

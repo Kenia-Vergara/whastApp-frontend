@@ -676,3 +676,7 @@
     background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%);
     animation: pulse 0.5s infinite;
 }
+.problem-qr{
+    text-align: center;
+    margin-bottom: 10px;
+}
